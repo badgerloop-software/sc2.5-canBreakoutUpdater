@@ -245,6 +245,10 @@ zephyr_udc0: &usbotg_fs {
 };
 
 &flash0 {
+	#address-cells = <1>;
+	#size-cells = <1>;
+	ranges = <0x0 0x08000000 DT_SIZE_M(2)>;
+
 	partitions {
 		#address-cells = <1>;
 		#size-cells = <1>;
