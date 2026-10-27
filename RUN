@@ -12,4 +12,4 @@ west config build.cmake-args -- "-DBOARD_ROOT=<absolute_path_to_app>"     #   Pe
 west build -b -p <board_name> --sysbuild <path_to_app> --build-dir <path_to_app>/build
 ---------------------------------------------------------------------------------------------------
 
-west flash
+west flash -d <path_to_app>/build --skip-rebuild
