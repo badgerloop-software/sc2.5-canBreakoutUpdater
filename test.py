@@ -10,8 +10,7 @@ FILE_SIZE = 1
 SENDING_FILE = 2
 FILE_SENT = 3
 
-DEFAULT_IMAGE = "build/customZephyrOTA/zephyr/zephyr.signed.bin"
-
+DEFAULT_IMAGE = None
 
 def chunk_image(data: bytes, pad: int, block: int):
     for off in range(0, len(data), block):
@@ -23,7 +22,7 @@ def chunk_image(data: bytes, pad: int, block: int):
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("image", nargs="?", default=DEFAULT_IMAGE, help=f"signed image (default {DEFAULT_IMAGE})")
+    ap.add_argument("image", nargs="?", default=DEFAULT_IMAGE, help=f"signed image")
     ap.add_argument("--ip", default="192.168.1.1", help="board address (MCU_IP_ADDR)")
     ap.add_argument("--port", type=int, default=12345, help="board port (LOCAL_PORT)")
     ap.add_argument("--bind", default=None, help="local IP to send from, e.g. 192.168.1.2")
@@ -33,6 +32,9 @@ def main() -> int:
     ap.add_argument("--dry-run", action="store_true", help="read the image and exit, send nothing")
     args = ap.parse_args()
 
+    if (args.image is None):
+        sys.exit("Image path not valid")
+    
     try:
         with open(args.image, "rb") as f:
             image = f.read()

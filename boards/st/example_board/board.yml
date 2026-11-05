@@ -1,6 +1,0 @@
-board:
-  name: example_board
-  full_name: Example Board
-  vendor: st
-  socs:
-    - name: stm32h753xx
