@@ -9,7 +9,7 @@ list(
 )
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
-project(canExample)
+project(canBreakout)
 
 add_subdirectory(embedded-pio/zephyrcan)
 add_subdirectory(embedded-pio/zephyrethernet)
@@ -23,8 +23,8 @@ target_include_directories(app
 target_sources(app 
     PRIVATE 
         src/main.cpp
-        src/examplecan.cpp
-        inc/examplecan.h
+        src/canbreakout.cpp
+        inc/canbreakout.h
         inc/const.h
 )
 

@@ -8,7 +8,7 @@ west build -b -p <board_name> --sysbuild <path_to_app> --build-dir <path_to_app>
 
 OR
 
-west config build.cmake-args -- "-DBOARD_ROOT=<absolute_path_to_app>"     #   Permenantly adds boards to valid boards so you only run it once
+west config build.cmake-args -- "-DBOARD_ROOT=<absolute_path_to_app>"
 west build -b -p <board_name> --sysbuild <path_to_app> --build-dir <path_to_app>/build
 ---------------------------------------------------------------------------------------------------
 
