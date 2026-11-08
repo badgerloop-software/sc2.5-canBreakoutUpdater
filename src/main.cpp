@@ -12,7 +12,7 @@ LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 int main(void) {
     LOG_INF("Hello World DEVELOP----- %s\n", CONFIG_BOARD_TARGET);
-    CANBreakout canBus(canDev, CAN_IDS, sizeof(CAN_IDS)/sizeof(CAN_IDS[0]), CAN_FREQUENCY);
+    CANBreakout canBus(canDev, CAN_IDS, sizeof(CAN_IDS)/sizeof(CAN_IDS[0]));
     canBus.begin();
 
     if (canBus.canStatus() != CAN_OK) {
