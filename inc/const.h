@@ -5,8 +5,6 @@
 #include <zephyr/device.h>
 #include <zephyr/devicetree.h>
 
-#define USING_FDCAN     0
-
 #define EXAMPLE_ID      0xFF
 
 static const struct device * const canDev = DEVICE_DT_GET(DT_CHOSEN(zephyr_canbus));

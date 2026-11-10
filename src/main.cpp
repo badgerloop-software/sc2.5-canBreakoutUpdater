@@ -7,6 +7,7 @@
 #include "otap.h"
 #include "canbreakout.h"
 #include "updatemanager_eth.h"
+#include "updatemanager_can.h"
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
@@ -32,4 +33,5 @@ int main(void) {
     return 0;
 }
 
-K_THREAD_DEFINE(update_manager, 4096, ethernetUpdateTask, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(update_manager_eth, 4096, ethernetUpdateTask, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(update_manager_can, 4096, canUpdateTask, NULL, NULL, NULL, 7, 0, 0);
