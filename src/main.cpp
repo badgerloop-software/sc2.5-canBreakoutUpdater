@@ -7,12 +7,13 @@
 #include "otap.h"
 #include "canbreakout.h"
 #include "updatemanager_eth.h"
+#include "updatemanager_can.h"
 
 LOG_MODULE_REGISTER(main, LOG_LEVEL_INF);
 
 int main(void) {
     LOG_INF("Hello World DEVELOP----- %s\n", CONFIG_BOARD_TARGET);
-    CANBreakout canBus(canDev, CAN_IDS, sizeof(CAN_IDS)/sizeof(CAN_IDS[0]), CAN_FREQUENCY);
+    CANBreakout canBus(canDev, CAN_IDS, sizeof(CAN_IDS)/sizeof(CAN_IDS[0]));
     canBus.begin();
 
     if (canBus.canStatus() != CAN_OK) {
@@ -32,4 +33,5 @@ int main(void) {
     return 0;
 }
 
-K_THREAD_DEFINE(update_manager, 4096, ethernetUpdateTask, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(update_manager_eth, 4096, ethernetUpdateTask, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(update_manager_can, 4096, canUpdateTask, NULL, NULL, NULL, 7, 0, 0);
