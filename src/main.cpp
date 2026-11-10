@@ -48,3 +48,7 @@ K_THREAD_DEFINE(update_manager_can, 4096, canUpdateSendTask, NULL, NULL, NULL, 7
 K_THREAD_DEFINE(update_coordinator, 1024, updateCoordinatorTask, NULL, NULL, NULL, 7, 0, 0);
 #endif
 K_THREAD_DEFINE(update_manager_can2, 4096, canUpdateTask, NULL, NULL, NULL, 7, 0, 0);
+=======
+K_THREAD_DEFINE(update_manager_eth, 4096, ethernetUpdateTask, NULL, NULL, NULL, 7, 0, 0);
+K_THREAD_DEFINE(update_manager_can, 4096, canUpdateTask, NULL, NULL, NULL, 7, 0, 0);
+>>>>>>> 007a61a (Implemented protocol to receive files over CAN)
