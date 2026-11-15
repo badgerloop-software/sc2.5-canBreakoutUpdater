@@ -9,6 +9,12 @@ REQUEST_BLOCK_SIZE = 0
 FILE_SIZE = 1
 SENDING_FILE = 2
 FILE_SENT = 3
+REQUEST_START_UPDATE = 4
+
+BOARDS = {
+    "canbreakout": 0,
+    "pdc": 1,
+}
 
 DEFAULT_IMAGE = None
 
@@ -23,6 +29,7 @@ def chunk_image(data: bytes, pad: int, block: int):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("image", nargs="?", default=DEFAULT_IMAGE, help=f"signed image")
+    ap.add_argument("--board", default="canbreakout", choices=BOARDS.keys(), help="board to update: canbreakout (the Ethernet board itself) or pdc (forwarded over CAN)")
     ap.add_argument("--ip", default="192.168.1.1", help="board address (MCU_IP_ADDR)")
     ap.add_argument("--port", type=int, default=12345, help="board port (LOCAL_PORT)")
     ap.add_argument("--bind", default=None, help="local IP to send from, e.g. 192.168.1.2")
@@ -48,6 +55,7 @@ def main() -> int:
 
     print(f"image      : {args.image}")
     print(f"size       : {len(image)} bytes")
+    print(f"board      : {args.board} (id {BOARDS[args.board]})")
     print(f"dest       : {args.ip}:{args.port}" + (f"  from {args.bind}" if args.bind else ""))
 
     if args.dry_run:
@@ -81,6 +89,13 @@ def main() -> int:
 
     t0 = time.time()
 
+    send(REQUEST_START_UPDATE, bytes([BOARDS[args.board]]))
+    reply = recv("REQUEST_START_UPDATE")
+    if not reply or reply[0] != 0x00:
+        code = f"0x{reply[0]:02x}" if reply else "empty reply"
+        sys.exit(f"\nboard denied the update request ({code}: CAN transfer in progress or invalid board id) - aborting.")
+    print(f"<- ACK     update start accepted for {args.board}")
+
     send(REQUEST_BLOCK_SIZE)
     reply = recv("REQUEST_BLOCK_SIZE")
     if len(reply) < 4:
@@ -105,13 +120,19 @@ def main() -> int:
             print(f"-> data {i:4d}/{len(packets)}  off 0x{off:06x}")
 
     send(FILE_SENT)
-    try:
-        sock.recvfrom(8)
-    except socket.timeout:
-        pass
+    if BOARDS[args.board] == 0:
+        try:
+            sock.recvfrom(8)
+        except socket.timeout:
+            pass
+    else:
+        wait_ack("FILE_SENT (payload meta)")
 
     dt = time.time() - t0
-    print(f"\nsent {len(image)} bytes in {dt:.1f}s. Board finalizes and reboots.")
+    if BOARDS[args.board] == 0:
+        print(f"\nsent {len(image)} bytes in {dt:.1f}s. Board finalizes and reboots.")
+    else:
+        print(f"\nsent {len(image)} bytes in {dt:.1f}s. Gateway is forwarding to {args.board} over CAN and reboots when done.")
     sock.close()
     return 0
 

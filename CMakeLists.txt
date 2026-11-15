@@ -7,11 +7,13 @@ list(
         ${CMAKE_CURRENT_SOURCE_DIR}/embedded-pio/zephyrethernet/zephyrethernet.conf
         ${CMAKE_CURRENT_SOURCE_DIR}/embedded-pio/updatemanager_eth/updatemanager_eth.conf
         ${CMAKE_CURRENT_SOURCE_DIR}/embedded-pio/updatemanager_can/updatemanager_can.conf
+        ${CMAKE_CURRENT_SOURCE_DIR}/embedded-pio/coordinator/coordinator.conf
 )
 
 find_package(Zephyr REQUIRED HINTS $ENV{ZEPHYR_BASE})
 project(canBreakout)
 
+add_subdirectory(embedded-pio/coordinator)
 add_subdirectory(embedded-pio/zephyrcan)
 add_subdirectory(embedded-pio/zephyrethernet)
 add_subdirectory(embedded-pio/updatemanager_eth)
@@ -32,6 +34,7 @@ target_sources(app
 
 target_link_libraries(app
     PRIVATE
+        coordinator
         zephyrcan
         zephyrethernet
         updatemanager_eth
