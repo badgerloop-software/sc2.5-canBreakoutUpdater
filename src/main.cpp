@@ -35,3 +35,6 @@ int main(void) {
 
 K_THREAD_DEFINE(update_manager_eth, 4096, ethernetUpdateTask, NULL, NULL, NULL, 7, 0, 0);
 K_THREAD_DEFINE(update_manager_can, 4096, canUpdateTask, NULL, NULL, NULL, 7, 0, 0);
+#if FIXED_PARTITION_EXISTS(payload_partition)
+K_THREAD_DEFINE(update_manager_can2, 4096, canUpdateSendTask, NULL, NULL, NULL, 7, 0, 0);
+#endif
