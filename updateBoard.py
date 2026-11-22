@@ -26,7 +26,7 @@ def chunk_image(data: bytes, pad: int, block: int):
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("image", nargs="?", default=DEFAULT_IMAGE, help=f"signed image")
-    ap.add_argument("--board", type=lambda s: int(s, 0), default=CAN_BREAKOUT_BOARD, help="board id to update: 0 is the Ethernet board itself, any other id is forwarded over CAN (default 0)")
+    ap.add_argument("--board", type=lambda s: int(s, 0), help="board id to update: 0 is the Ethernet board itself, any other id is forwarded over CAN")
     ap.add_argument("--ip", default="192.168.1.1", help="board address (MCU_IP_ADDR)")
     ap.add_argument("--port", type=int, default=12345, help="board port (LOCAL_PORT)")
     ap.add_argument("--bind", default=None, help="local IP to send from, e.g. 192.168.1.2")
@@ -38,6 +38,9 @@ def main() -> int:
 
     if (args.image is None):
         sys.exit("Image path not valid")
+
+    if (args.board is None):
+        sys.exit("Need to enter a target board")
     
     try:
         with open(args.image, "rb") as f:
