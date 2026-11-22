@@ -156,6 +156,10 @@ build/sc2.5-canBreakoutUpdater/zephyr/zephyr.signed.bin
 target board, send that board's own firmware `zephyr.signed.bin`. The image path
 is required — there is no default.
 
+Only the `.bin` is supported for now. The script sends the file's bytes as-is,
+so a `zephyr.signed.hex` (Intel HEX text, roughly 2.7 times larger) gets written
+into the slot as text and MCUboot rejects it after the transfer.
+
 A forwarded image has to fit in the payload partition: 384 KB minus the header,
 which is `CONFIG_IMG_BLOCK_BUF_SIZE` (512 B), so at most 392,704 bytes.
 
@@ -260,4 +264,6 @@ sent 133288 bytes in 5.2s. Gateway is forwarding to board id 1 over CAN.
 - **Wi-Fi shield support** — accept over-the-air updates through a Wi-Fi shield, so the board can be updated wirelessly rather than over a wired link.
 - **Backup image in a third slot** — keep the previous MCU image in a 3rd slot as a backup, and add restore logic to roll back to it when needed.
 - **Reboot tracking with alive signals** — confirm the full update process completes by tracking liveness: an alive signal from the MCU on the CAN bus, and an alive Ethernet message sent by the breakout board on wake-up, watched by the Python script. This also covers forwards: the breakout board does not reboot after a forward, and the script exits once the payload is stored, so nothing currently reports whether the CAN leg succeeded or whether the target board came back up on its new image.
+- **`.signed.hex` file support** — let `updateBoard.py` accept `zephyr.signed.hex` as well as `zephyr.signed.bin`. Detect the Intel HEX format, convert it to the raw image bytes before sending (filling any gaps with the `--pad` byte), and use the converted length for `FILE_SIZE`. Until then, a `.hex` is sent as text and MCUboot rejects it, so at minimum the script should refuse a `.hex` file with a clear message.
+- **Hardware-accelerated CRC** — the payload CRC32 currently runs in software (`CONFIG_CRC_HW_HANDLER=n`). Zephyr's STM32 hardware CRC path gives the right answer for one call over a whole buffer, but wrong answers when `crc32_ieee_update()` is chained across chunks: it loads the previous result back in as the seed without undoing the unit's output bit-reversal. The writer works in 512 B packets and the CAN sender verifies in 256 B reads, so the two sides disagree and every forward is refused. To use the CRC unit, either compute the CRC in a single call over the stored image (the internal flash is memory-mapped) on both the writing and verifying side, or fix the seed handling in Zephyr's `crc_hardware.c` / `crc_stm32.c` and then turn the handler back on.
 - **Better `zephyrcan` receive-stack management** — every `ZephyrCAN` object's receive thread takes a stack from a fixed pool in `zephyrcan.cpp`: 4 stacks of 2 KB each, 8 KB of RAM reserved whether or not they are used. `begin()` claims one and the destructor gives it back; a 5th object at the same time fails with `FAILED_TO_ALLOCATE_RX_STACK`. The count and size are hard-coded `#define`s, and every object gets 2 KB no matter how little its `readHandler` needs. Make the count and size configurable (Kconfig), let objects ask for the size they need, or replace the per-object threads with one receive thread that dispatches to every object so the whole library needs one stack.
