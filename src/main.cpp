@@ -21,7 +21,8 @@ void updateCoordinatorTask(void * p1, void * p2, void * p3) {
 
 int main(void) {
     LOG_INF("Hello World DEVELOP----- %s\n", CONFIG_BOARD_TARGET);
-    CANBreakout canBus(canDev, CAN_IDS, sizeof(CAN_IDS)/sizeof(CAN_IDS[0]));
+    //Static so that it does not take main's stack
+    static CANBreakout canBus(canDev, CAN_IDS, sizeof(CAN_IDS)/sizeof(CAN_IDS[0]));
     canBus.begin();
 
     if (canBus.canStatus() != CAN_OK) {
