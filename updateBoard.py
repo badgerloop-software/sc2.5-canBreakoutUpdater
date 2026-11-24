@@ -12,6 +12,8 @@ SENDING_FILE = 3
 FILE_SENT = 4
 
 CAN_BREAKOUT_BOARD = 0
+IMAGE_MAGIC = 0x96F3B83D
+MAX_HEX_SPAN = 0x400000
 
 DEFAULT_IMAGE = None
 
@@ -22,6 +24,61 @@ def chunk_image(data: bytes, pad: int, block: int):
             piece = piece + bytes([pad]) * (block - len(piece))
         yield off, piece
 
+def hex_to_bin(raw: bytes, pad: int):
+    try:
+        lines = raw.decode("ascii").splitlines()
+    except UnicodeDecodeError:
+        sys.exit("hex file is not ASCII text")
+
+    base = 0
+    segments = []
+    for num, line in enumerate(lines, 1):
+        line = line.strip()
+        if not line:
+            continue
+        if not line.startswith(":"):
+            sys.exit(f"hex line {num}: missing ':'")
+        try:
+            rec = bytes.fromhex(line[1:])
+        except ValueError:
+            sys.exit(f"hex line {num}: bad hex digits")
+        if len(rec) < 5 or len(rec) != rec[0] + 5:
+            sys.exit(f"hex line {num}: bad record length")
+        if sum(rec) & 0xFF:
+            sys.exit(f"hex line {num}: bad checksum")
+
+        addr, rtype, data = (rec[1] << 8) | rec[2], rec[3], rec[4:-1]
+        if rtype == 0x00:
+            segments.append((base + addr, data))
+        elif rtype == 0x01:
+            break
+        elif rtype == 0x02:
+            base = int.from_bytes(data, "big") << 4
+        elif rtype == 0x04:
+            base = int.from_bytes(data, "big") << 16
+        elif rtype in (0x03, 0x05):
+            continue
+        else:
+            sys.exit(f"hex line {num}: unknown record type 0x{rtype:02x}")
+
+    if not segments:
+        sys.exit("hex file has no data records")
+
+    segments.sort(key=lambda s: s[0])
+    start = segments[0][0]
+    end = max(a + len(d) for a, d in segments)
+    if end - start > MAX_HEX_SPAN:
+        sys.exit(f"hex data spans 0x{start:08x}-0x{end:08x}, too large for one image")
+
+    image = bytearray([pad]) * (end - start)
+    prev_end = start
+    for addr, data in segments:
+        if addr < prev_end:
+            sys.exit(f"hex records overlap at 0x{addr:08x}")
+        image[addr - start:addr - start + len(data)] = data
+        prev_end = addr + len(data)
+
+    return bytes(image), start
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -42,6 +99,11 @@ def main() -> int:
     if (args.board is None):
         sys.exit("Need to enter a target board")
     
+    if not (0 <= args.board <= 0xFF):
+        sys.exit("--board must be a single byte 0..255")
+    if not (0 <= args.pad <= 0xFF):
+        sys.exit("--pad must be a single byte 0..255")
+
     try:
         with open(args.image, "rb") as f:
             image = f.read()
@@ -50,12 +112,18 @@ def main() -> int:
 
     if not image:
         sys.exit("image is empty")
-    if not (0 <= args.board <= 0xFF):
-        sys.exit("--board must be a single byte 0..255")
-    if not (0 <= args.pad <= 0xFF):
-        sys.exit("--pad must be a single byte 0..255")
+
+    is_hex = args.image.lower().endswith(".hex")
+    if is_hex:
+        hex_size = len(image)
+        image, hex_start = hex_to_bin(image, args.pad)
+
+    if len(image) < 4 or int.from_bytes(image[:4], "little") != IMAGE_MAGIC:
+        sys.exit("not an MCUboot-signed image (bad header magic) - send zephyr.signed.bin or zephyr.signed.hex")
 
     print(f"image      : {args.image}")
+    if is_hex:
+        print(f"format     : Intel HEX ({hex_size} bytes), converted from 0x{hex_start:08x}")
     print(f"size       : {len(image)} bytes")
     print(f"board id   : {args.board}" + (" (self update)" if args.board == CAN_BREAKOUT_BOARD else " (forwarded over CAN)"))
     print(f"dest       : {args.ip}:{args.port}" + (f"  from {args.bind}" if args.bind else ""))

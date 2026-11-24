@@ -145,30 +145,39 @@ To undo the static IP later, set the adapter's IP assignment back to
 
 ### Which file to send
 
-Send the **signed** application image for the board being updated, not the raw
-`.bin`. For the breakout board itself that is this repo's build output:
+Send the **signed** application image for the board being updated, either
+`zephyr.signed.bin` or `zephyr.signed.hex`, not the unsigned `zephyr.bin` /
+`zephyr.hex`. For the breakout board itself that is this repo's build output:
 
 ```
 build/sc2.5-canBreakoutUpdater/zephyr/zephyr.signed.bin
 ```
 
 (or the equivalent path under whatever `--build-dir` you built into). For a
-target board, send that board's own firmware `zephyr.signed.bin`. The image path
-is required — there is no default.
+target board, send that board's own firmware `zephyr.signed.bin` or
+`zephyr.signed.hex`. The image path is required — there is no default.
 
-Only the `.bin` is supported for now. The script sends the file's bytes as-is,
-so a `zephyr.signed.hex` (Intel HEX text, roughly 2.7 times larger) gets written
-into the slot as text and MCUboot rejects it after the transfer.
+A file ending in `.hex` is converted from Intel HEX to raw image bytes before
+anything is sent: records are checksum-checked, any gaps are filled with the
+`--pad` byte, and the image starts at the lowest address in the file. The
+converted image is the same size as the matching `.bin`. The two are not
+byte-for-byte identical, because the build signs each file separately and the
+signature includes a random value, but both are valid.
+
+Before sending, the script checks that the image starts with the MCUboot header
+magic (`0x96f3b83d`) and refuses the file if it doesn't. That catches an
+unsigned image, a merged bootloader + app `.hex`, or the wrong file before the
+board erases anything.
 
 A forwarded image has to fit in the payload partition: 384 KB minus the header,
 which is `CONFIG_IMG_BLOCK_BUF_SIZE` (512 B), so at most 392,704 bytes.
 
 ### Command
 
-Update the breakout board itself (board id `0`, the default):
+`--board` is required. Update the breakout board itself (board id `0`):
 
 ```bash
-py updateBoard.py build/sc2.5-canBreakoutUpdater/zephyr/zephyr.signed.bin --bind 192.168.1.2
+py updateBoard.py build/sc2.5-canBreakoutUpdater/zephyr/zephyr.signed.bin --board 0 --bind 192.168.1.2
 ```
 
 Update a target board through the breakout board, passing its board id. For example:
@@ -177,16 +186,22 @@ Update a target board through the breakout board, passing its board id. For exam
 py updateBoard.py path/to/target/zephyr.signed.bin --board 1 --bind 192.168.1.2
 ```
 
+The `.hex` works the same way:
+
+```bash
+py updateBoard.py path/to/target/zephyr.signed.hex --board 1 --bind 192.168.1.2
+```
+
 ### Arguments
 
 | Argument | Default | Meaning |
 |---|---|---|
-| `image` | *(required)* | Path to the signed image to send. |
-| `--board` | `0` | Board id to update: `0` is the board on Ethernet, any other id is forwarded over CAN. Decimal or hex (`1`, `0x01`). See [Boards](#boards). |
+| `image` | *(required)* | Path to the signed image to send: `zephyr.signed.bin` or `zephyr.signed.hex`. |
+| `--board` | *(required)* | Board id to update: `0` is the board on Ethernet, any other id is forwarded over CAN. Decimal or hex (`1`, `0x01`). See [Boards](#boards). |
 | `--ip` | `192.168.1.1` | Board address. |
 | `--port` | `12345` | Board UDP port (host binds the same port). |
 | `--bind` | *(none)* | Host IP to send from; set to `192.168.1.2`. |
-| `--pad` | `0xFF` | Fill byte for the final chunk's trailing bytes. |
+| `--pad` | `0xFF` | Fill byte for the final chunk's trailing bytes, and for any gaps when converting a `.hex`. |
 | `--warmup` | `1.5` | Seconds to wait before the handshake, so the board has armed its receiver. |
 | `--ack-timeout` | `15` | Seconds to wait for each reply/ACK. Must exceed the board's erase of the spare slot or payload partition. |
 | `--dry-run` | off | Read the image and print its size, send nothing. |
@@ -259,11 +274,19 @@ Forward to a target board ends with:
 sent 133288 bytes in 5.2s. Gateway is forwarding to board id 1 over CAN.
 ```
 
+Sending a `.hex` adds a `format` line showing the original file size and the
+address the image was converted from, e.g. for a target board image:
+
+```
+image      : path/to/target/zephyr.signed.hex
+format     : Intel HEX (118944 bytes), converted from 0x08040000
+size       : 43240 bytes
+```
+
 ## TODO
 
 - **Wi-Fi shield support** — accept over-the-air updates through a Wi-Fi shield, so the board can be updated wirelessly rather than over a wired link.
 - **Backup image in a third slot** — keep the previous MCU image in a 3rd slot as a backup, and add restore logic to roll back to it when needed.
 - **Reboot tracking with alive signals** — confirm the full update process completes by tracking liveness: an alive signal from the MCU on the CAN bus, and an alive Ethernet message sent by the breakout board on wake-up, watched by the Python script. This also covers forwards: the breakout board does not reboot after a forward, and the script exits once the payload is stored, so nothing currently reports whether the CAN leg succeeded or whether the target board came back up on its new image.
-- **`.signed.hex` file support** — let `updateBoard.py` accept `zephyr.signed.hex` as well as `zephyr.signed.bin`. Detect the Intel HEX format, convert it to the raw image bytes before sending (filling any gaps with the `--pad` byte), and use the converted length for `FILE_SIZE`. Until then, a `.hex` is sent as text and MCUboot rejects it, so at minimum the script should refuse a `.hex` file with a clear message.
 - **Hardware-accelerated CRC** — the payload CRC32 currently runs in software (`CONFIG_CRC_HW_HANDLER=n`). Zephyr's STM32 hardware CRC path gives the right answer for one call over a whole buffer, but wrong answers when `crc32_ieee_update()` is chained across chunks: it loads the previous result back in as the seed without undoing the unit's output bit-reversal. The writer works in 512 B packets and the CAN sender verifies in 256 B reads, so the two sides disagree and every forward is refused. To use the CRC unit, either compute the CRC in a single call over the stored image (the internal flash is memory-mapped) on both the writing and verifying side, or fix the seed handling in Zephyr's `crc_hardware.c` / `crc_stm32.c` and then turn the handler back on.
 - **Better `zephyrcan` receive-stack management** — every `ZephyrCAN` object's receive thread takes a stack from a fixed pool in `zephyrcan.cpp`: 4 stacks of 2 KB each, 8 KB of RAM reserved whether or not they are used. `begin()` claims one and the destructor gives it back; a 5th object at the same time fails with `FAILED_TO_ALLOCATE_RX_STACK`. The count and size are hard-coded `#define`s, and every object gets 2 KB no matter how little its `readHandler` needs. Make the count and size configurable (Kconfig), let objects ask for the size they need, or replace the per-object threads with one receive thread that dispatches to every object so the whole library needs one stack.
